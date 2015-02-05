@@ -5,11 +5,9 @@ date: "February 5, 2015"
 output: html_document
 ---
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+The basic libraries needed for processing the data and making some simple plots
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r initialsetup, cache=T}
+```{r loadlibraries, cache=F}
 library(httr)
 library(maptools)
 library(maps)
@@ -20,7 +18,14 @@ library(RCurl)
 library(ggplot2)
 library(plyr)
 library(ggmap)
+library(knitr)
+opts_chunk$set(results='hide',
+               warning=F,fig.align='center',echo=T,
+               fig.height=12,message=F) 
+```
 
+Load the data from the Strava site
+```{r initialsetup, cache=T}
 source("Rtrava.R")
 
 # For the first time to create the token run the following
@@ -51,19 +56,38 @@ ggplot(first.polyline,aes(y=lat,x=lng))+
   theme_bw(20)
 ```
 
+Parse the rest of it into a data-frame so it can be manipulated and plotted easily
+
 ```{r}
-pl.data<-ldply(my.acts,function(cur.act) {
-  act.cols<-names(cur.act)
-  wt<-cur.act$workout_type
-  sum.data<-data.frame(id=cur.act$id
+try.or.na<-function(block) {
+  out.val<-tryCatch(block,error=function(e) {NA})
+  if(is.null(out.val)) NA
+  else out.val
+}
+sum.fun<-function(cur.act) {
+            data.frame(id=try.or.na({cur.act$id}),
+                       date=try.or.na({cur.act$start_date_local}),
+                       type=try.or.na({cur.act$type}),
+                       workout_type=try.or.na({cur.act$workout_type}),
+                       avg_speed=try.or.na({cur.act$average_speed}),
+                       avg_hr=try.or.na({cur.act$average_heartrate}),
+                       dist=try.or.na({cur.act$distance}),
+                       elevation=try.or.na({cur.act$total_elevation_gain}),
+                       moving_time=try.or.na({cur.act$moving_time})
                        )
+            }
+
+summary.data<-ldply(my.acts,sum.fun)
+pl.data<-ldply(my.acts,function(cur.act) {
+  sum.data<-sum.fun(cur.act)
+  # append position information
   tryCatch(
     {
     map.df<-DecodeLineR(cur.act$map$summary_polyline)
     cbind(sum.data,map.df)
     },
     error = function(e) {
-      cbind(sum.data,lat=0,lng=0)
+      cbind(sum.data,lat=NA,lng=NA)
     })
 })
 ```
@@ -71,6 +95,7 @@ pl.data<-ldply(my.acts,function(cur.act) {
 
 ```{r contourplot}
 ggplot(pl.data,aes(x=lng,y=lat))+
+  stat_binhex(color=NA,bins=100)+
   geom_density2d()+
   coord_equal()+
   labs(y="Latitude",x="Longitude")+
@@ -105,5 +130,116 @@ ggmap(euMap)+
   stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=50)+
   scale_fill_gradientn(colours=rainbow(6),trans = "log")+
   labs(y="Latitude",x="Longitude")+
+  theme_bw(20)
+```
+
+# Sports Statistics
+
+```{r }
+good.sport.data<-subset(summary.data,!is.na(avg_hr) & avg_speed<80)
+good.sport.data$year<-as.numeric(substr(as.character(good.sport.data$date),0,4))
+good.sport.data$kmph<-with(good.sport.data,dist/1000/(moving_time/3600))
+good.sport.data$minperkm<-with(good.sport.data,(moving_time/60)/(dist/1000))
+ggplot(good.sport.data,aes(x=moving_time/60,y=dist/1000))+
+  geom_point(aes(color=avg_hr))+
+  geom_smooth()+
+  scale_color_gradientn(colours=rainbow(6))+
+  labs(x="Time (min)",y="Distance (km)")+
+  facet_wrap(~type,scales="free")+
+  theme_bw(10)
+```
+
+```{r }
+ggplot(good.sport.data,aes(x=avg_hr,y=minperkm,color=type))+
+  geom_point()+
+  geom_density2d()+
+  #scale_color_gradientn(colours=rainbow(6))+
+  labs(y="Pace (min/km)",x="Heart Rate")+
+  #facet_wrap(~type,scales="free")+
+  ylim(0,45)+
+  theme_bw(20)
+```
+
+```{r }
+ggplot(good.sport.data,aes(x=moving_time/60,y=avg_hr))+
+  geom_point(aes(color=type))+
+  #scale_color_gradientn(colours=rainbow(6))+
+  labs(x="Time",y="Heart Rate")+
+  scale_x_sqrt()+
+  facet_wrap(~type,scales="free")+
+  theme_bw(10)
+```
+
+## Running
+```{r }
+run.data<-subset(good.sport.data,!is.na(avg_hr) & type=="Run" & minperkm>3 & minperkm<30)
+ggplot(run.data,aes(x=moving_time/60,y=avg_hr))+
+  geom_point(aes(color=minperkm))+
+  scale_color_gradientn(colours=rainbow(6))+
+  labs(x="Time (minutes)",y="Heart Rate",color="Pace\nMin/km")+
+  scale_x_sqrt()+
+  theme_bw(20)
+```
+
+```{r}
+ggplot(run.data,aes(x=minperkm,y=avg_hr))+
+  geom_point(aes(color=moving_time/60))+
+  scale_color_gradientn(colours=rainbow(6))+
+  labs(x="Pace (Min/km)",y="Heart Rate",color="Time\n(min)")+
+  theme_bw(20)
+```
+
+```{r}
+ggplot(run.data,aes(x=minperkm,y=avg_hr))+
+  geom_point(aes(color=dist/1000))+
+  scale_color_gradientn(colours=rainbow(6))+
+  labs(x="Speed",y="Heart Rate",color="Distance\nkm")+
+  facet_wrap(~year)+
+  ylim(100,180)+
+  theme_bw(20)
+```
+
+
+```{r}
+ggplot(run.data,aes(x=minperkm,y=avg_hr,color=as.factor(year)))+
+  geom_density2d(aes(weight=moving_time))+
+  labs(x="Pace (min/km)",y="Heart Rate")+
+  ylim(100,180)+
+  #xlim(1,20)+
+  facet_wrap(~year)+
+  labs(color="Year")+
+  theme_bw(20)
+```
+
+```{r}
+ggplot(run.data,aes(x=as.factor(year),y=minperkm,fill=as.factor(year)))+
+  geom_violin()+
+  labs(y="Pace (min/km)",x="Year")+
+  labs(fill="Year")+
+  theme_bw(20)
+```
+
+
+## Cycling
+
+```{r}
+cycling.data<-subset(good.sport.data,!is.na(avg_hr) & type=="Ride" & kmph>5 & kmph<60)
+ggplot(cycling.data,aes(x=as.factor(year),y=kmph,fill=as.factor(year)))+
+  geom_violin()+
+  labs(y="Speed",x="Year")+
+  #ylim(1,5)+
+  labs(fill="Year")+
+  theme_bw(20)
+```
+
+```{r}
+ggplot(cycling.data,aes(x=kmph,y=avg_hr))+
+  geom_point(aes(color=elevation))+
+  geom_density2d(alpha=0.5)+
+  labs(x="Pace (min/km)",y="Heart Rate")+
+  scale_color_gradientn(colours=rainbow(6))+
+  ylim(100,180)+
+  #xlim(1,20)+
+  facet_wrap(~year)+
   theme_bw(20)
 ```

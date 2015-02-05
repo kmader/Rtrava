@@ -362,8 +362,9 @@ get_streams  <- function(stoken, id, request="activities",
       return(dataRaw)
 }
 
-#Google polyline decoder borrowed from:
-#http://facstaff.unca.edu/mcmcclur/GoogleMaps/EncodePolyline/decode.js
+# Google polyline decoder borrowed from:
+# https://gist.github.com/diegovalle/916889 who borrowed from
+# http://facstaff.unca.edu/mcmcclur/GoogleMaps/EncodePolyline/decode.js
 DecodeLineR <- function(encoded) {
   len = str_length(encoded)
   encoded <- strsplit(encoded, NULL)[[1]]
