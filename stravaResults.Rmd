@@ -1,0 +1,81 @@
+---
+title: "Strava Results"
+author: "Kevin Mader"
+date: "February 5, 2015"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r initialsetup, cache=T}
+library(httr)
+library(maptools)
+library(maps)
+library(mapdata)
+library(rjson)
+library(stringr)
+library(RCurl)
+library(ggplot2)
+library(plyr)
+library(ggmap)
+source("login.R") # defines everything for strava_oath function
+source("Rtrava.R")
+stoken<-config(token=strava_oauth(strava.appname,strava.clientid,strava.secret))
+```
+
+Read my activities
+
+```{r, cache=T}
+my.strava.id<-"845403"
+my.acts<-get_activity_list(stoken,id=my.strava.id)
+```
+
+Show a single polyline
+
+```{r}
+first.polyline<-DecodeLineR(my.acts[[1]]$map$summary_polyline)
+ggplot(first.polyline,aes(y=lat,x=lng))+
+  geom_jitter()+
+  geom_path()+
+  labs(y="Latitude",x="Longitude")+
+  theme_bw(20)
+```
+
+```{r}
+pl.data<-ldply(my.acts,function(cur.act) {
+  act.cols<-names(cur.act)
+  wt<-cur.act$workout_type
+  sum.data<-data.frame(id=cur.act$id
+                       )
+  tryCatch(
+    {
+    map.df<-DecodeLineR(cur.act$map$summary_polyline)
+    cbind(sum.data,map.df)
+    },
+    error = function(e) {
+      cbind(sum.data,lat=0,lng=0)
+    })
+})
+```
+
+
+```{r contourplot}
+ggplot(pl.data,aes(x=lng,y=lat))+
+  geom_density2d()+
+  coord_equal()+
+  labs(y="Latitude",x="Longitude")+
+  theme_bw(20)
+```
+
+Now show a basic density plot on top of some map information
+
+```{r maps}
+villigenMap<-get_map(location=c(lon=8.22190,lat=47.53733))
+ggmap(villigenMap)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5)+
+  scale_fill_gradientn(colours=rainbow(6))+
+  labs(y="Latitude",x="Longitude")+
+  theme_bw(20)
+```
