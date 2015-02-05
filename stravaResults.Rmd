@@ -20,9 +20,17 @@ library(RCurl)
 library(ggplot2)
 library(plyr)
 library(ggmap)
-source("login.R") # defines everything for strava_oath function
+
 source("Rtrava.R")
-stoken<-config(token=strava_oauth(strava.appname,strava.clientid,strava.secret))
+
+# For the first time to create the token run the following
+# source("login.R") # defines everything for strava_oath function
+# stoken<-config(token=strava_oauth(strava.appname,strava.clientid,strava.secret))
+# save.image("token.RData")
+load("token.RData");
+# reload the important functions
+source("Rtrava.R")
+usage_left <- as.integer(c(600, 30000))
 ```
 
 Read my activities
