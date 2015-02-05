@@ -69,13 +69,33 @@ ggplot(pl.data,aes(x=lng,y=lat))+
   theme_bw(20)
 ```
 
-Now show a basic density plot on top of some map information
+Now show a basic density plot on top of some map information for around Switzerland
 
-```{r maps}
-villigenMap<-get_map(location=c(lon=8.22190,lat=47.53733))
+```{r mapsvilligen}
+villigenMap<-get_map(location=c(lon=8.22190,lat=47.53733),color="bw")
 ggmap(villigenMap)+
-  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5)+
-  scale_fill_gradientn(colours=rainbow(6))+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=200)+
+  scale_fill_gradientn(colours=rainbow(6),trans = "log")+
+  labs(y="Latitude",x="Longitude")+
+  theme_bw(20)
+```
+
+Now of the US
+```{r mapsusa}
+usaMap<-get_map(location=c(lon=-97.22190,lat=42),zoom=4,color="bw")
+ggmap(usaMap)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=100)+
+  scale_fill_gradientn(colours=rainbow(6),trans = "log")+
+  labs(y="Latitude",x="Longitude")+
+  theme_bw(20)
+```
+
+Now of Europe
+```{r mapseurope}
+euMap<-get_map(location=c(lon=12.22190,lat=45),zoom=4,color="bw")
+ggmap(euMap)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=50)+
+  scale_fill_gradientn(colours=rainbow(6),trans = "log")+
   labs(y="Latitude",x="Longitude")+
   theme_bw(20)
 ```
