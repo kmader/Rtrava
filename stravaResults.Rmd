@@ -21,7 +21,7 @@ library(ggmap)
 library(knitr)
 opts_chunk$set(results='hide',
                warning=F,fig.align='center',echo=T,
-               fig.height=12,message=F) 
+               fig.height=7,message=F) 
 ```
 
 Load the data from the Strava site
