@@ -2,7 +2,13 @@
 title: "Strava Results"
 author: "Kevin Mader"
 date: "February 5, 2015"
-output: html_document
+output:
+  html_document:
+    keep_md: yes
+    number_sections: yes
+    toc: yes
+csl: nature.csl
+bibliography: packages.bib
 ---
 
 The basic libraries needed for processing the data and making some simple plots
@@ -21,7 +27,10 @@ library(ggmap)
 library(knitr)
 opts_chunk$set(results='hide',
                warning=F,fig.align='center',echo=T,
-               fig.height=7,message=F) 
+               fig.height=7,message=F,cache=T) 
+library(knitcitations)
+used.libraries<-c("ggplot2","lattice","plyr","reshape2","grid","gridExtra","biOps","png","EBImage")
+for(clib in used.libraries) citep(citation(clib))
 ```
 
 Load the data from the Strava site
@@ -105,7 +114,7 @@ ggplot(pl.data,aes(x=lng,y=lat))+
 Now show a basic density plot on top of some map information for around Switzerland
 
 ```{r mapsvilligen}
-villigenMap<-get_map(location=c(lon=8.22190,lat=47.53733),color="bw")
+villigenMap<-get_map(location=c(lon=8.22190,lat=47.53733),color="bw",scale=2)
 ggmap(villigenMap)+
   stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=200)+
   scale_fill_gradientn(colours=rainbow(6),trans = "log")+
@@ -115,7 +124,17 @@ ggmap(villigenMap)+
 
 Now of the US
 ```{r mapsusa}
-usaMap<-get_map(location=c(lon=-97.22190,lat=42),zoom=4,color="bw")
+usaMap<-get_map(location=c(lon=-97.22190,lat=42),zoom=4,scale=2,color="bw")
+ggmap(usaMap)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=100)+
+  scale_fill_gradientn(colours=rainbow(6),trans = "log")+
+  labs(y="Latitude",x="Longitude")+
+  theme_bw(20)
+```
+
+West coast
+```{r mapswestcoast}
+usaMap<-get_map(location=c(lon=-120,lat=43.5),zoom=6,scale=2,color="bw")
 ggmap(usaMap)+
   stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=100)+
   scale_fill_gradientn(colours=rainbow(6),trans = "log")+
@@ -127,7 +146,7 @@ Now of Europe
 ```{r mapseurope}
 euMap<-get_map(location=c(lon=12.22190,lat=45),zoom=4,color="bw")
 ggmap(euMap)+
-  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=50)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.75,bins=100)+
   scale_fill_gradientn(colours=rainbow(6),trans = "log")+
   labs(y="Latitude",x="Longitude")+
   theme_bw(20)
@@ -138,6 +157,7 @@ ggmap(euMap)+
 ```{r }
 good.sport.data<-subset(summary.data,!is.na(avg_hr) & avg_speed<80)
 good.sport.data$year<-as.numeric(substr(as.character(good.sport.data$date),0,4))
+good.sport.data$month<-as.numeric(substr(as.character(good.sport.data$date),6,7))
 good.sport.data$kmph<-with(good.sport.data,dist/1000/(moving_time/3600))
 good.sport.data$minperkm<-with(good.sport.data,(moving_time/60)/(dist/1000))
 ggplot(good.sport.data,aes(x=moving_time/60,y=dist/1000))+
@@ -146,6 +166,16 @@ ggplot(good.sport.data,aes(x=moving_time/60,y=dist/1000))+
   scale_color_gradientn(colours=rainbow(6))+
   labs(x="Time (min)",y="Distance (km)")+
   facet_wrap(~type,scales="free")+
+  theme_bw(10)
+```
+
+```{r}
+total.beats<-ddply(good.sport.data,.(type,year,month),
+                   function(x) data.frame(tot.beats=sum(x$avg_hr*x$moving_time)))
+ggplot(total.beats,aes(x=(month),y=tot.beats))+
+  geom_line(aes(color=type,group=type))+
+  labs(x="Month",y="Total Heart Beats")+
+  facet_wrap(~year,scales="free_x")+
   theme_bw(10)
 ```
 
@@ -242,4 +272,34 @@ ggplot(cycling.data,aes(x=kmph,y=avg_hr))+
   #xlim(1,20)+
   facet_wrap(~year)+
   theme_bw(20)
+```
+
+# Full Maps
+Now of Europe
+```{r fullmap}
+plr.data<-ddply(subset(pl.data,!is.na(lat) && !is.na(lng) && type!="Workout"),.(type),
+                       function(x) cbind(x,type.count=nrow(x)))
+euMap<-get_map(location=c(lon=12.22190,lat=45),zoom=4,color="bw")
+ggmap(euMap)+
+  stat_binhex(data=subset(plr.data,type.count>1000),aes(x=lng,y=lat),alpha=0.75,bins=50)+
+  scale_fill_gradientn(colours=rainbow(6),trans = "log")+
+  facet_wrap(~type)+
+  labs(y="Latitude",x="Longitude")+
+  theme_bw(20)
+```
+
+Travel
+```{r fullmap2}
+pl.data$year<-as.numeric(substr(as.character(pl.data$date),0,4))
+euMap<-get_map(location=c(lon=12.22190,lat=45),zoom=2,color="bw")
+ggmap(euMap)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.75,bins=50)+
+  scale_fill_gradientn(colours=rainbow(6),trans = "log")+
+  facet_wrap(~year)+
+  labs(y="Latitude",x="Longitude")+
+  theme_bw(20)
+```
+
+```{r}
+write.bibtex(entry=bibliography(),file="packages.bib")
 ```
