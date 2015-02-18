@@ -7,33 +7,24 @@ output:
     keep_md: yes
     number_sections: yes
     toc: yes
-csl: nature.csl
-bibliography: packages.bib
 ---
 
-The basic libraries needed for processing the data and making some simple plots
+# Setup
+First a few libraries need to be loaded for processing the data and making some simple plots on top of maps
 
-```{r loadlibraries, cache=F}
-library(httr)
-library(maptools)
-library(maps)
-library(mapdata)
-library(rjson)
-library(stringr)
-library(RCurl)
-library(ggplot2)
-library(plyr)
-library(ggmap)
-library(knitr)
+```{r loadlibraries, warning=FALSE, cache=FALSE,echo=T,error=FALSE,results='hide',message=F}
+used.libraries<-c("knitcitations","ggplot2","plyr","knitr","rmarkdown","httr","maptools","maps","rjson","stringr","RCurl")
+for(clib in used.libraries) {
+  library(clib,character.only=T)
+  citep(citation(clib))
+}
 opts_chunk$set(results='hide',
                warning=F,fig.align='center',echo=T,
-               fig.height=7,message=F,cache=T) 
-library(knitcitations)
-used.libraries<-c("ggplot2","lattice","plyr","reshape2","grid","gridExtra","biOps","png","EBImage")
-for(clib in used.libraries) citep(citation(clib))
+               fig.height=7,message=F,cache=T)
 ```
 
-Load the data from the Strava site
+Now using the Strava API  combined with the Rtrava code provided by https://github.com/ptdrow/Rtrava we can authenticate using a personal code generated on the http://strava.github.io/api/ page.
+
 ```{r initialsetup, cache=T}
 source("Rtrava.R")
 
@@ -47,25 +38,25 @@ source("Rtrava.R")
 usage_left <- as.integer(c(600, 30000))
 ```
 
-Read my activities
+Now all the activities can be read in for a given Strava user (in this case, me)
 
 ```{r, cache=T}
 my.strava.id<-"845403"
 my.acts<-get_activity_list(stoken,id=my.strava.id)
 ```
 
-Show a single polyline
+We now demonstrate that the data has been read in reasonably correctly by plotting the last activity as a line
 
 ```{r}
 first.polyline<-DecodeLineR(my.acts[[1]]$map$summary_polyline)
 ggplot(first.polyline,aes(y=lat,x=lng))+
-  geom_jitter()+
+  geom_point()+
   geom_path()+
   labs(y="Latitude",x="Longitude")+
   theme_bw(20)
 ```
 
-Parse the rest of it into a data-frame so it can be manipulated and plotted easily
+The next code parses the GPS data from the polyline for every activity that has the information. It also tries to read in other information like distance, heart-rate, etc and places an NA if it isn't present.
 
 ```{r}
 try.or.na<-function(block) {
@@ -101,6 +92,7 @@ pl.data<-ldply(my.acts,function(cur.act) {
 })
 ```
 
+Here is a simple contour plot of all the data that has been read in
 
 ```{r contourplot}
 ggplot(pl.data,aes(x=lng,y=lat))+
@@ -110,6 +102,8 @@ ggplot(pl.data,aes(x=lng,y=lat))+
   labs(y="Latitude",x="Longitude")+
   theme_bw(20)
 ```
+
+# Overview Maps
 
 Now show a basic density plot on top of some map information for around Switzerland
 
@@ -122,7 +116,8 @@ ggmap(villigenMap)+
   theme_bw(20)
 ```
 
-Now of the US
+Now of the US 
+
 ```{r mapsusa}
 usaMap<-get_map(location=c(lon=-97.22190,lat=42),zoom=4,scale=2,color="bw")
 ggmap(usaMap)+
@@ -132,7 +127,8 @@ ggmap(usaMap)+
   theme_bw(20)
 ```
 
-West coast
+Examining just the west coast in more detail
+
 ```{r mapswestcoast}
 usaMap<-get_map(location=c(lon=-120,lat=43.5),zoom=6,scale=2,color="bw")
 ggmap(usaMap)+
@@ -142,7 +138,8 @@ ggmap(usaMap)+
   theme_bw(20)
 ```
 
-Now of Europe
+Now for all of Europe
+
 ```{r mapseurope}
 euMap<-get_map(location=c(lon=12.22190,lat=45),zoom=4,color="bw")
 ggmap(euMap)+
@@ -153,6 +150,8 @@ ggmap(euMap)+
 ```
 
 # Sports Statistics
+
+Here I try to make some basic analysis for various sports looking at heart rate, duration and speed.
 
 ```{r }
 good.sport.data<-subset(summary.data,!is.na(avg_hr) & avg_speed<80)
@@ -275,7 +274,8 @@ ggplot(cycling.data,aes(x=kmph,y=avg_hr))+
 ```
 
 # Full Maps
-Now of Europe
+Are more detailed maps dividing activities by sport and year to see if any interesting results come out.
+## Europe
 ```{r fullmap}
 plr.data<-ddply(subset(pl.data,!is.na(lat) && !is.na(lng) && type!="Workout"),.(type),
                        function(x) cbind(x,type.count=nrow(x)))
@@ -288,7 +288,9 @@ ggmap(euMap)+
   theme_bw(20)
 ```
 
-Travel
+## Travel
+Examining my amount of travel each year
+
 ```{r fullmap2}
 pl.data$year<-as.numeric(substr(as.character(pl.data$date),0,4))
 euMap<-get_map(location=c(lon=12.22190,lat=45),zoom=2,color="bw")
@@ -300,6 +302,8 @@ ggmap(euMap)+
   theme_bw(20)
 ```
 
-```{r}
-write.bibtex(entry=bibliography(),file="packages.bib")
+# References
+
+```{r, results='asis'}
+bibliography()
 ```
