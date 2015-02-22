@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+<meta name="author" content="Kevin Mader" />
+
+
+<title>Strava Results</title>
+
+<script src="stravaResults_files/jquery-1.11.0/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="stravaResults_files/bootstrap-3.3.1/css/bootstrap.min.css" rel="stylesheet" />
+<script src="stravaResults_files/bootstrap-3.3.1/js/bootstrap.min.js"></script>
+<script src="stravaResults_files/bootstrap-3.3.1/shim/html5shiv.min.js"></script>
+<script src="stravaResults_files/bootstrap-3.3.1/shim/respond.min.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<link rel="stylesheet"
+      href="stravaResults_files/highlight/default.css"
+      type="text/css" />
+<script src="stravaResults_files/highlight/highlight.js"></script>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs && document.readyState && document.readyState === "complete") {
+   window.setTimeout(function() {
+      hljs.initHighlighting();
+   }, 0);
+}
+</script>
+
+
+
+</head>
+
+<body>
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img { 
+  max-width:100%; 
+  height: auto; 
+}
+</style>
+<div class="container-fluid main-container">
+
+
+<div id="header">
+<h1 class="title">Strava Results</h1>
+<h4 class="author"><em>Kevin Mader</em></h4>
+<h4 class="date"><em>February 5, 2015</em></h4>
+</div>
+
+<div id="TOC">
+<ul>
+<li><a href="#setup"><span class="toc-section-number">1</span> Setup</a></li>
+<li><a href="#overview-maps"><span class="toc-section-number">2</span> Overview Maps</a></li>
+<li><a href="#sports-statistics"><span class="toc-section-number">3</span> Sports Statistics</a><ul>
+<li><a href="#running"><span class="toc-section-number">3.1</span> Running</a></li>
+<li><a href="#cycling"><span class="toc-section-number">3.2</span> Cycling</a></li>
+</ul></li>
+<li><a href="#full-maps"><span class="toc-section-number">4</span> Full Maps</a><ul>
+<li><a href="#travel"><span class="toc-section-number">4.1</span> Travel</a></li>
+</ul></li>
+<li><a href="#references"><span class="toc-section-number">5</span> References</a></li>
+</ul>
+</div>
+
+<div id="setup" class="section level1">
+<h1><span class="header-section-number">1</span> Setup</h1>
+<p>First a few libraries need to be loaded for processing the data and making some simple plots on top of maps</p>
+<pre class="r"><code>used.libraries&lt;-c(&quot;knitcitations&quot;,&quot;ggplot2&quot;,&quot;plyr&quot;,&quot;knitr&quot;,&quot;rmarkdown&quot;,&quot;httr&quot;,&quot;maptools&quot;,&quot;maps&quot;,&quot;rjson&quot;,&quot;stringr&quot;,&quot;RCurl&quot;)
+for(clib in used.libraries) {
+  library(clib,character.only=T)
+  citep(citation(clib))
+}
+opts_chunk$set(results=&#39;hide&#39;,
+               warning=F,fig.align=&#39;center&#39;,echo=T,
+               fig.height=7,message=F,cache=T)</code></pre>
+<p>Now using the Strava API combined with the Rtrava code provided by <a href="https://github.com/ptdrow/Rtrava" class="uri">https://github.com/ptdrow/Rtrava</a> we can authenticate using a personal code generated on the <a href="http://strava.github.io/api/" class="uri">http://strava.github.io/api/</a> page.</p>
+<pre class="r"><code>source(&quot;Rtrava.R&quot;)
+
+# For the first time to create the token run the following
+# source(&quot;login.R&quot;) # defines everything for strava_oath function
+# stoken&lt;-config(token=strava_oauth(strava.appname,strava.clientid,strava.secret))
+# save.image(&quot;token.RData&quot;)
+load(&quot;token.RData&quot;);
+# reload the important functions
+source(&quot;Rtrava.R&quot;)
+usage_left &lt;- as.integer(c(600, 30000))</code></pre>
+<p>Now all the activities can be read in for a given Strava user (in this case, me)</p>
+<pre class="r"><code>my.strava.id&lt;-&quot;845403&quot;
+my.acts&lt;-get_activity_list(stoken,id=my.strava.id)</code></pre>
+<p>We now demonstrate that the data has been read in reasonably correctly by plotting the last activity as a line</p>
+<pre class="r"><code>first.polyline&lt;-DecodeLineR(my.acts[[1]]$map$summary_polyline)
+ggplot(first.polyline,aes(y=lat,x=lng))+
+  geom_point()+
+  geom_path()+
+  labs(y=&quot;Latitude&quot;,x=&quot;Longitude&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-2-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<p>The next code parses the GPS data from the polyline for every activity that has the information. It also tries to read in other information like distance, heart-rate, etc and places an NA if it isn’t present.</p>
+<pre class="r"><code>try.or.na&lt;-function(block) {
+  out.val&lt;-tryCatch(block,error=function(e) {NA})
+  if(is.null(out.val)) NA
+  else out.val
+}
+sum.fun&lt;-function(cur.act) {
+            data.frame(id=try.or.na({cur.act$id}),
+                       date=try.or.na({cur.act$start_date_local}),
+                       type=try.or.na({cur.act$type}),
+                       workout_type=try.or.na({cur.act$workout_type}),
+                       avg_speed=try.or.na({cur.act$average_speed}),
+                       avg_hr=try.or.na({cur.act$average_heartrate}),
+                       dist=try.or.na({cur.act$distance}),
+                       elevation=try.or.na({cur.act$total_elevation_gain}),
+                       moving_time=try.or.na({cur.act$moving_time})
+                       )
+            }
+
+summary.data&lt;-ldply(my.acts,sum.fun)
+pl.data&lt;-ldply(my.acts,function(cur.act) {
+  sum.data&lt;-sum.fun(cur.act)
+  # append position information
+  tryCatch(
+    {
+    map.df&lt;-DecodeLineR(cur.act$map$summary_polyline)
+    cbind(sum.data,map.df)
+    },
+    error = function(e) {
+      cbind(sum.data,lat=NA,lng=NA)
+    })
+})</code></pre>
+<p>Here is a simple contour plot of all the data that has been read in</p>
+<pre class="r"><code>ggplot(pl.data,aes(x=lng,y=lat))+
+  stat_binhex(color=NA,bins=100)+
+  geom_density2d()+
+  coord_equal()+
+  labs(y=&quot;Latitude&quot;,x=&quot;Longitude&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/contourplot-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+</div>
+<div id="overview-maps" class="section level1">
+<h1><span class="header-section-number">2</span> Overview Maps</h1>
+<p>Now show a basic density plot on top of some map information for around Switzerland</p>
+<pre class="r"><code>villigenMap&lt;-get_map(location=c(lon=8.22190,lat=47.53733),color=&quot;bw&quot;,scale=2)
+ggmap(villigenMap)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=200)+
+  scale_fill_gradientn(colours=rainbow(6),trans = &quot;log&quot;)+
+  labs(y=&quot;Latitude&quot;,x=&quot;Longitude&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/mapsvilligen-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<p>Now of the US</p>
+<pre class="r"><code>usaMap&lt;-get_map(location=c(lon=-97.22190,lat=42),zoom=4,scale=2,color=&quot;bw&quot;)
+ggmap(usaMap)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=100)+
+  scale_fill_gradientn(colours=rainbow(6),trans = &quot;log&quot;)+
+  labs(y=&quot;Latitude&quot;,x=&quot;Longitude&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/mapsusa-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<p>Examining just the west coast in more detail</p>
+<pre class="r"><code>usaMap&lt;-get_map(location=c(lon=-120,lat=43.5),zoom=6,scale=2,color=&quot;bw&quot;)
+ggmap(usaMap)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=100)+
+  scale_fill_gradientn(colours=rainbow(6),trans = &quot;log&quot;)+
+  labs(y=&quot;Latitude&quot;,x=&quot;Longitude&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/mapswestcoast-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<p>Now for all of Europe</p>
+<pre class="r"><code>euMap&lt;-get_map(location=c(lon=12.22190,lat=45),zoom=4,color=&quot;bw&quot;)
+ggmap(euMap)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.75,bins=100)+
+  scale_fill_gradientn(colours=rainbow(6),trans = &quot;log&quot;)+
+  labs(y=&quot;Latitude&quot;,x=&quot;Longitude&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/mapseurope-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+</div>
+<div id="sports-statistics" class="section level1">
+<h1><span class="header-section-number">3</span> Sports Statistics</h1>
+<p>Here I try to make some basic analysis for various sports looking at heart rate, duration and speed.</p>
+<pre class="r"><code>good.sport.data&lt;-subset(summary.data,!is.na(avg_hr) &amp; avg_speed&lt;80)
+good.sport.data$year&lt;-as.numeric(substr(as.character(good.sport.data$date),0,4))
+good.sport.data$month&lt;-as.numeric(substr(as.character(good.sport.data$date),6,7))
+good.sport.data$kmph&lt;-with(good.sport.data,dist/1000/(moving_time/3600))
+good.sport.data$minperkm&lt;-with(good.sport.data,(moving_time/60)/(dist/1000))
+ggplot(good.sport.data,aes(x=moving_time/60,y=dist/1000))+
+  geom_point(aes(color=avg_hr))+
+  geom_smooth()+
+  scale_color_gradientn(colours=rainbow(6))+
+  labs(x=&quot;Time (min)&quot;,y=&quot;Distance (km)&quot;)+
+  facet_wrap(~type,scales=&quot;free&quot;)+
+  theme_bw(10)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-4-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>total.beats&lt;-ddply(good.sport.data,.(type,year,month),
+                   function(x) data.frame(tot.beats=sum(x$avg_hr*x$moving_time)))
+ggplot(total.beats,aes(x=(month),y=tot.beats))+
+  geom_line(aes(color=type,group=type))+
+  labs(x=&quot;Month&quot;,y=&quot;Total Heart Beats&quot;)+
+  facet_wrap(~year,scales=&quot;free_x&quot;)+
+  theme_bw(10)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-5-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot(good.sport.data,aes(x=avg_hr,y=minperkm,color=type))+
+  geom_point()+
+  geom_density2d()+
+  #scale_color_gradientn(colours=rainbow(6))+
+  labs(y=&quot;Pace (min/km)&quot;,x=&quot;Heart Rate&quot;)+
+  #facet_wrap(~type,scales=&quot;free&quot;)+
+  ylim(0,45)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-6-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot(good.sport.data,aes(x=moving_time/60,y=avg_hr))+
+  geom_point(aes(color=type))+
+  #scale_color_gradientn(colours=rainbow(6))+
+  labs(x=&quot;Time&quot;,y=&quot;Heart Rate&quot;)+
+  scale_x_sqrt()+
+  facet_wrap(~type,scales=&quot;free&quot;)+
+  theme_bw(10)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-7-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<div id="running" class="section level2">
+<h2><span class="header-section-number">3.1</span> Running</h2>
+<pre class="r"><code>run.data&lt;-subset(good.sport.data,!is.na(avg_hr) &amp; type==&quot;Run&quot; &amp; minperkm&gt;3 &amp; minperkm&lt;30)
+ggplot(run.data,aes(x=moving_time/60,y=avg_hr))+
+  geom_point(aes(color=minperkm))+
+  scale_color_gradientn(colours=rainbow(6))+
+  labs(x=&quot;Time (minutes)&quot;,y=&quot;Heart Rate&quot;,color=&quot;Pace\nMin/km&quot;)+
+  scale_x_sqrt()+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-8-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot(run.data,aes(x=minperkm,y=avg_hr))+
+  geom_point(aes(color=moving_time/60))+
+  scale_color_gradientn(colours=rainbow(6))+
+  labs(x=&quot;Pace (Min/km)&quot;,y=&quot;Heart Rate&quot;,color=&quot;Time\n(min)&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-9-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot(run.data,aes(x=minperkm,y=avg_hr))+
+  geom_point(aes(color=dist/1000))+
+  scale_color_gradientn(colours=rainbow(6))+
+  labs(x=&quot;Speed&quot;,y=&quot;Heart Rate&quot;,color=&quot;Distance\nkm&quot;)+
+  facet_wrap(~year)+
+  ylim(100,180)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-10-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot(run.data,aes(x=minperkm,y=avg_hr,color=as.factor(year)))+
+  geom_density2d(aes(weight=moving_time))+
+  labs(x=&quot;Pace (min/km)&quot;,y=&quot;Heart Rate&quot;)+
+  ylim(100,180)+
+  #xlim(1,20)+
+  facet_wrap(~year)+
+  labs(color=&quot;Year&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-11-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot(run.data,aes(x=as.factor(year),y=minperkm,fill=as.factor(year)))+
+  geom_violin()+
+  labs(y=&quot;Pace (min/km)&quot;,x=&quot;Year&quot;)+
+  labs(fill=&quot;Year&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-12-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+</div>
+<div id="cycling" class="section level2">
+<h2><span class="header-section-number">3.2</span> Cycling</h2>
+<pre class="r"><code>cycling.data&lt;-subset(good.sport.data,!is.na(avg_hr) &amp; type==&quot;Ride&quot; &amp; kmph&gt;5 &amp; kmph&lt;60)
+ggplot(cycling.data,aes(x=as.factor(year),y=kmph,fill=as.factor(year)))+
+  geom_violin()+
+  labs(y=&quot;Speed&quot;,x=&quot;Year&quot;)+
+  #ylim(1,5)+
+  labs(fill=&quot;Year&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-13-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>ggplot(cycling.data,aes(x=kmph,y=avg_hr))+
+  geom_point(aes(color=elevation))+
+  geom_density2d(alpha=0.5)+
+  labs(x=&quot;Pace (min/km)&quot;,y=&quot;Heart Rate&quot;)+
+  scale_color_gradientn(colours=rainbow(6))+
+  ylim(100,180)+
+  #xlim(1,20)+
+  facet_wrap(~year)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/unnamed-chunk-14-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+<div id="full-maps" class="section level1">
+<h1><span class="header-section-number">4</span> Full Maps</h1>
+<p>Are more detailed maps dividing activities by sport and year to see if any interesting results come out. ## Europe</p>
+<pre class="r"><code>plr.data&lt;-ddply(subset(pl.data,!is.na(lat) &amp;&amp; !is.na(lng) &amp;&amp; type!=&quot;Workout&quot;),.(type),
+                       function(x) cbind(x,type.count=nrow(x)))
+euMap&lt;-get_map(location=c(lon=12.22190,lat=45),zoom=4,color=&quot;bw&quot;)
+ggmap(euMap)+
+  stat_binhex(data=subset(plr.data,type.count&gt;1000),aes(x=lng,y=lat),alpha=0.75,bins=50)+
+  scale_fill_gradientn(colours=rainbow(6),trans = &quot;log&quot;)+
+  facet_wrap(~type)+
+  labs(y=&quot;Latitude&quot;,x=&quot;Longitude&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/fullmap-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+<div id="travel" class="section level2">
+<h2><span class="header-section-number">4.1</span> Travel</h2>
+<p>Examining my amount of travel each year</p>
+<pre class="r"><code>pl.data$year&lt;-as.numeric(substr(as.character(pl.data$date),0,4))
+euMap&lt;-get_map(location=c(lon=12.22190,lat=45),zoom=2,color=&quot;bw&quot;)
+ggmap(euMap)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.75,bins=50)+
+  scale_fill_gradientn(colours=rainbow(6),trans = &quot;log&quot;)+
+  facet_wrap(~year)+
+  labs(y=&quot;Latitude&quot;,x=&quot;Longitude&quot;)+
+  theme_bw(20)</code></pre>
+<p><img src="stravaResults_files/figure-html/fullmap2-1.png" title="" alt="" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+<div id="references" class="section level1">
+<h1><span class="header-section-number">5</span> References</h1>
+<pre class="r"><code>bibliography()</code></pre>
+<p>[1] J. Allaire, J. Cheng, Y. Xie, et al. <em>rmarkdown: Dynamic Documents for R</em>. R package version 0.5.1. 2015. <URL:
+http://CRAN.R-project.org/package=rmarkdown>.</p>
+<p>[2] O. S. c. b. R. A. Becker and A. R. W. R. v. b. R. B. E. b. T. P. M. <a href="mailto:tpminka@media.mit.edu">tpminka@media.mit.edu</a>. <em>maps: Draw Geographical Maps</em>. R package version 2.3-9. 2014. <URL:
+http://CRAN.R-project.org/package=maps>.</p>
+<p>[3] R. Bivand and N. Lewin-Koh. <em>maptools: Tools for Reading and Handling Spatial Objects</em>. R package version 0.8-34. 2015. <URL:
+http://CRAN.R-project.org/package=maptools>.</p>
+<p>[4] C. Boettiger. <em>knitcitations: Citations for knitr markdown files</em>. R package version 1.0.5. 2014. <URL:
+http://CRAN.R-project.org/package=knitcitations>.</p>
+<p>[5] A. Couture-Beil. <em>rjson: JSON for R</em>. R package version 0.2.14. 2014. <URL: http://CRAN.R-project.org/package=rjson>.</p>
+<p>[6] D. Temple Lang. <em>RCurl: General network (HTTP/FTP/…) client interface for R</em>. R package version 1.95-4.5. 2014. <URL:
+http://CRAN.R-project.org/package=RCurl>.</p>
+<p>[7] H. Wickham. <em>ggplot2: elegant graphics for data analysis</em>. Springer New York, 2009. ISBN: 978-0-387-98140-6. <URL:
+http://had.co.nz/ggplot2/book>.</p>
+<p>[8] H. Wickham. <em>httr: Tools for working with URLs and HTTP</em>. R package version 0.5. 2014. <URL:
+http://CRAN.R-project.org/package=httr>.</p>
+<p>[9] H. Wickham. <em>stringr: Make it easier to work with strings.</em> R package version 0.6.2. 2012. <URL:
+http://CRAN.R-project.org/package=stringr>.</p>
+<p>[10] H. Wickham. “The Split-Apply-Combine Strategy for Data Analysis”. In: <em>Journal of Statistical Software</em> 40.1 (2011), pp. 1-29. <URL: http://www.jstatsoft.org/v40/i01/>.</p>
+<p>[11] Y. Xie. <em>Dynamic Documents with R and knitr</em>. ISBN 978-1482203530. Boca Raton, Florida: Chapman and Hall/CRC, 2013. <URL: http://yihui.name/knitr/>.</p>
+<p>[12] Y. Xie. “knitr: A Comprehensive Tool for Reproducible Research in R”. In: <em>Implementing Reproducible Computational Research</em>. Ed. by V. Stodden, F. Leisch and R. D. Peng. ISBN 978-1466561595. Chapman and Hall/CRC, 2014. <URL:
+http://www.crcpress.com/product/isbn/9781466561595>.</p>
+<p>[13] Y. Xie. <em>knitr: A General-Purpose Package for Dynamic Report Generation in R</em>. R package version 1.8. 2014. <URL:
+http://yihui.name/knitr/>.</p>
+</div>
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+$(document).ready(function () {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+});
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
