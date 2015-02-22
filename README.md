@@ -1,9 +1,9 @@
 Processing Geo-Data from Strava
 =====
+------
 Reading, parsing, and playing around with Geographical Strava data in R
 ----------
-Using the original Rtrava library (forked in this repository) which connect with the Strava API, the excellent R packages of ggplot2, plyr, knitr, rmarkdown, httr, maptools, maps, rjson, stringr, RCurl, and RMarkdown, we create a nice report of sports and with lots of little heatmpas and other simple analyses. As shown here: [https://rawgit.com/kmader/Rtrava/master/stravaResults.html](https://rawgit.com/kmader/Rtrava/master/stravaResults.html)
-------
+As many people measure more and more of their lives with activity-trackers and GPS watches and upload the data to websites like Strava, there is a trove of interesting information to be found by harvesting these data. Being avid R users, we did not want to wait for the websites to roll out some of the more interesting analyses. Using the original Rtrava library (https://github.com/ptdrow/Rtrava) which connects with the Strava API, the R packages of ggplot2, plyr, knitr, rmarkdown, httr, maptools, maps, rjson, stringr, RCurl, and RMarkdown, it is possible to generate a report of sports and with lots of little heatmaps and other simple analyses. We can easily divide the data by sport type, speed, date, and any other parameter to begin to look at the correlations between speed and heart rate or elevation gain and duration.  As shown here: [https://kmader.github.io/stravaResults.html](stravaResults.html)
 
 # Making your own
 
