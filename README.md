@@ -1,20 +1,21 @@
-Rtrava
+Processing Geo-Data from Strava
 =====
-
-
-Library for the Strava API v3 in R
-
-
+Reading, parsing, and playing around with Geographical Strava data in R
 ----------
-This library allows retrieving data from the running and cycling tracker Strava, directly from its API. It is coded in R language and uses the httr package to deal with the API. 
-
-To use the library you need your own app client and secret from the Developers page of Strava. See the API documentation for more info on how to register your own app and the resources availables from the API: http://strava.github.io/api/
-
+Using the original Rtrava library (forked in this repository) which connect with the Strava API, the excellent R packages of ggplot2, plyr, knitr, rmarkdown, httr, maptools, maps, rjson, stringr, RCurl, and RMarkdown, we create a nice report of sports and with lots of little heatmpas and other simple analyses. As shown here: [https://rawgit.com/kmader/Rtrava/master/stravaResults.html](https://rawgit.com/kmader/Rtrava/master/stravaResults.html)
 ------
-## RMarkdown
 
-You can make simple reports showing basic plots like the heatmaps using ggplot2 and ggmap [https://rawgit.com/kmader/Rtrava/master/stravaResults.html](https://rawgit.com/kmader/Rtrava/master/stravaResults.html)
+# Making your own
 
-## Shiny
+To make your own, you basically just have to copy the first portion of the stravaResults.Rmd file up until ```summary.data, pl.data``` are defined. These are the useful variables for plotting everything else. 
 
-Here you can see a demo Shiny app that uses Strava data previously downloaded with the Rtrava functions: [https://ptdrow.shinyapps.io/SegmentApp/](https://ptdrow.shinyapps.io/SegmentApp/)
+## Heatmap
+A heat-map can be created using the following code which first pulls a black and white map at the scale 2 from the server and shows it with a 2d binning of the data on top. The bins are shown as hexagonal shapes (stat_binhex) and the filling is dictated by the ```log``` of the count (a count of 0 is not shown at all).
+```{r}
+map.data<-get_map(location=c(lon=8.22190,lat=47.53733),color="bw",scale=2)
+ggmap(map.data)+
+  stat_binhex(data=pl.data,aes(x=lng,y=lat),alpha=0.5,bins=200)+
+  scale_fill_gradientn(colours=rainbow(6),trans = "log")+
+  labs(y="Latitude",x="Longitude")+
+  theme_bw(20)
+```
