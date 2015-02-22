@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Rtrava by kmader</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Rtrava</h1>
+        <p>Library for the Strava API v3 in R</p>
+
+        <p class="view"><a href="https://github.com/kmader/Rtrava">View the Project on GitHub <small>kmader/Rtrava</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/kmader/Rtrava/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/kmader/Rtrava/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/kmader/Rtrava">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a id="processing-geo-data-from-strava" class="anchor" href="#processing-geo-data-from-strava" aria-hidden="true"><span class="octicon octicon-link"></span></a>Processing Geo-Data from Strava</h1>
+
+<h2>
+<a id="reading-parsing-and-playing-around-with-geographical-strava-data-in-r" class="anchor" href="#reading-parsing-and-playing-around-with-geographical-strava-data-in-r" aria-hidden="true"><span class="octicon octicon-link"></span></a>Reading, parsing, and playing around with Geographical Strava data in R</h2>
+
+<h2>
+<a id="using-the-original-rtrava-library-forked-in-this-repository-which-connect-with-the-strava-api-the-excellent-r-packages-of-ggplot2-plyr-knitr-rmarkdown-httr-maptools-maps-rjson-stringr-rcurl-and-rmarkdown-we-create-a-nice-report-of-sports-and-with-lots-of-little-heatmpas-and-other-simple-analyses-as-shown-here-httpsrawgitcomkmaderrtravamasterstravaresultshtml" class="anchor" href="#using-the-original-rtrava-library-forked-in-this-repository-which-connect-with-the-strava-api-the-excellent-r-packages-of-ggplot2-plyr-knitr-rmarkdown-httr-maptools-maps-rjson-stringr-rcurl-and-rmarkdown-we-create-a-nice-report-of-sports-and-with-lots-of-little-heatmpas-and-other-simple-analyses-as-shown-here-httpsrawgitcomkmaderrtravamasterstravaresultshtml" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using the original Rtrava library (forked in this repository) which connect with the Strava API, the excellent R packages of ggplot2, plyr, knitr, rmarkdown, httr, maptools, maps, rjson, stringr, RCurl, and RMarkdown, we create a nice report of sports and with lots of little heatmpas and other simple analyses. As shown here: <a href="https://rawgit.com/kmader/Rtrava/master/stravaResults.html">https://rawgit.com/kmader/Rtrava/master/stravaResults.html</a>
+</h2>
+
+<h1>
+<a id="making-your-own" class="anchor" href="#making-your-own" aria-hidden="true"><span class="octicon octicon-link"></span></a>Making your own</h1>
+
+<p>To make your own, you basically just have to copy the first portion of the stravaResults.Rmd file up until <code>summary.data, pl.data</code> are defined. These are the useful variables for plotting everything else. </p>
+
+<h2>
+<a id="heatmap" class="anchor" href="#heatmap" aria-hidden="true"><span class="octicon octicon-link"></span></a>Heatmap</h2>
+
+<p>A heat-map can be created using the following code which first pulls a black and white map at the scale 2 from the server and shows it with a 2d binning of the data on top. The bins are shown as hexagonal shapes (stat_binhex) and the filling is dictated by the <code>log</code> of the count (a count of 0 is not shown at all).</p>
+
+<div class="highlight highlight-r"><pre><span class="pl-vo">map.data</span><span class="pl-k">&lt;-</span>get_map(<span class="pl-v">location</span><span class="pl-k">=</span>c(<span class="pl-v">lon</span><span class="pl-k">=</span><span class="pl-c1">8.22190</span>,<span class="pl-v">lat</span><span class="pl-k">=</span><span class="pl-c1">47.53733</span>),<span class="pl-v">color</span><span class="pl-k">=</span><span class="pl-s1"><span class="pl-pds">"</span>bw<span class="pl-pds">"</span></span>,<span class="pl-v">scale</span><span class="pl-k">=</span><span class="pl-c1">2</span>)
+ggmap(<span class="pl-vo">map.data</span>)<span class="pl-k">+</span>
+  stat_binhex(<span class="pl-v">data</span><span class="pl-k">=</span><span class="pl-vo">pl.data</span>,aes(<span class="pl-v">x</span><span class="pl-k">=</span><span class="pl-vo">lng</span>,<span class="pl-v">y</span><span class="pl-k">=</span><span class="pl-vo">lat</span>),<span class="pl-v">alpha</span><span class="pl-k">=</span><span class="pl-c1">0.5</span>,<span class="pl-v">bins</span><span class="pl-k">=</span><span class="pl-c1">200</span>)<span class="pl-k">+</span>
+  scale_fill_gradientn(<span class="pl-v">colours</span><span class="pl-k">=</span>rainbow(<span class="pl-c1">6</span>),<span class="pl-v">trans</span> <span class="pl-k">=</span> <span class="pl-s1"><span class="pl-pds">"</span>log<span class="pl-pds">"</span></span>)<span class="pl-k">+</span>
+  labs(<span class="pl-v">y</span><span class="pl-k">=</span><span class="pl-s1"><span class="pl-pds">"</span>Latitude<span class="pl-pds">"</span></span>,<span class="pl-v">x</span><span class="pl-k">=</span><span class="pl-s1"><span class="pl-pds">"</span>Longitude<span class="pl-pds">"</span></span>)<span class="pl-k">+</span>
+  theme_bw(<span class="pl-c1">20</span>)</pre></div>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/kmader">kmader</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+              <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-48238118-1");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>
